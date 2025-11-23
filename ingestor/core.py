@@ -19,6 +19,7 @@ import logging
 from typing import List, Any, Dict
 
 from ingestor.tei_client import TEIClient
+from ingestor.utils.identifier import extract_identifier_field
 from ingestor.utils.text_unifier import build_texto_unificado
 from ingestor.utils.hashing import compute_hash_completo, compute_hash_estable
 from ingestor.sources.merge_sources import fetch_all_sources
@@ -201,9 +202,11 @@ async def ingest_loop(pool: asyncpg.Pool, tei_client: TEIClient):
                     for wrapper in chunk:
                         record = wrapper.get("raw") or {}
 
-                        id_estable = compute_hash_estable(record)
+                        id_estable = extract_identifier_field(record, "email")
                         hcomp = compute_hash_completo(record)
                         texto = build_texto_unificado(record) or " "
+
+                       
 
                         batch_items.append({
                             "id_estable": id_estable,

@@ -1,61 +1,44 @@
-# ingestor/utils/identifier.py
-"""
-Utility para extraer un único identificador desde un JSON arbitrario.
-Puede ser email, dni u otro campo único, configurable mediante IDENTIFIER_KEY.
-"""
+import json
+from typing import Any, Optional
+from ingestor.utils.hashing import sha256_hex
 
-import re
-from typing import Any
-
-EMAIL_REGEX = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
-DNI_REGEX = re.compile(r"\b\d{8}\b")
-
-# Cambiar entre "email", "dni" o cualquier clave específica
-IDENTIFIER_KEY = "email"
-
-
-def extract_identifier(value: Any) -> str | None:
+def extract_identifier_field(data: Any, field_name: str) -> Optional[str]:
     """
-    Busca un único identificador en estructuras dict/list/strings.
-    - Si IDENTIFIER_KEY = "email": detecta emails (regex).
-    - Si IDENTIFIER_KEY = "dni": detecta DNIs (regex).
-    - Si IDENTIFIER_KEY es otra cadena: busca esa clave exacta.
-    Retorna solo **un valor**, no una lista.
+    Extrae un campo en cualquier parte del JSON y devuelve DIRECTAMENTE
+    el hash sha256 del valor. Si el valor existe, siempre retorna el hash.
+    Si el JSON es inválido o el campo no existe → retorna None.
     """
 
-    target = IDENTIFIER_KEY.lower()
+    # 1. Si viene como string, intentar parsear JSON
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            return None
 
-    # Caso string
-    if isinstance(value, str):
-        if target == "email":
-            m = EMAIL_REGEX.search(value)
-            return m.group(0) if m else None
-        if target == "dni":
-            m = DNI_REGEX.search(value)
-            return m.group(0) if m else None
+    # 2. Validar estructura
+    if not isinstance(data, (dict, list)):
         return None
 
-    # Caso dict
-    if isinstance(value, dict):
-        # Buscar clave exacta
-        for key, v in value.items():
-            if key.lower() == target:
-                if isinstance(v, str):
-                    return v.strip()
-                return extract_identifier(v)
-        # Buscar recursivamente
-        for v in value.values():
-            result = extract_identifier(v)
-            if result:
-                return result
+    def deep_search(obj):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k.lower() == field_name.lower():
+                    # Convertir cualquier valor a string
+                    value_str = str(v).strip().lower()
+                    # Hashear directamente
+                    return sha256_hex(value_str)
+
+                res = deep_search(v)
+                if res is not None:
+                    return res
+
+        elif isinstance(obj, list):
+            for item in obj:
+                res = deep_search(item)
+                if res is not None:
+                    return res
+
         return None
 
-    # Caso lista
-    if isinstance(value, list):
-        for item in value:
-            result = extract_identifier(item)
-            if result:
-                return result
-        return None
-
-    return None
+    return deep_search(data)
