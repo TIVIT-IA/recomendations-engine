@@ -1,0 +1,110 @@
+# -------------------------
+# PYTHON BASICS
+# -------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual envs
+.env
+.venv
+venv/
+ENV/
+env/
+
+# Compiled files
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+pip-wheel-metadata/
+wheelhouse/
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+hypothesis/
+
+# Jupyter
+.ipynb_checkpoints
+
+# -------------------------
+# EDITORS / IDE
+# -------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# -------------------------
+# ENVIRONMENT / CREDENTIALS
+# -------------------------
+*.env
+.env.*
+.env_local
+*.secret
+credentials/
+service_account.json
+**/service_account.json
+
+# Supabase
+supabase/.temp/
+supabase/.config/
+
+# -------------------------
+# LOGS
+# -------------------------
+logs/
+*.log
+
+# -------------------------
+# DOCKER
+# -------------------------
+docker-data/
+docker-compose.override.yml
+**/pgdata/
+**/redis-data/
+
+# Avoid committing large model files
+*.onnx
+*.bin
+*.safetensors
+*.pt
+*.model
+
+# -------------------------
+# NODE / FRONTEND (si lo usas)
+# -------------------------
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# -------------------------
+# OTHER
+# -------------------------
+.DS_Store
+Thumbs.db
