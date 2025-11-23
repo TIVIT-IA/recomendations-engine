@@ -1,4 +1,4 @@
-# ingestor/src/clients/tei_client.py
+
 import aiohttp
 import asyncio
 import backoff
@@ -19,30 +19,29 @@ class TEIClient:
             resp.raise_for_status()
             data = await resp.json()
 
-            # TEI returns: { "embeddings": [...] }
-            if "embeddings" in data:
+            # 1️⃣ TEI tradicional: devuelve directamente una lista de vectores
+            if isinstance(data, list):
+                return data
+
+            # 2️⃣ Formato {"embeddings": [...]}
+            if isinstance(data, dict) and "embeddings" in data:
                 return data["embeddings"]
 
-            # HF Inference API format
-            if "data" in data:
+            # 3️⃣ Formato {"data": [{embedding: [...]}, ...]}
+            if isinstance(data, dict) and "data" in data:
                 return [d.get("embedding") for d in data["data"]]
 
-            raise RuntimeError(f"Formato TEI inesperado: {data}")
+            # 4️⃣ Cualquier otra cosa es error
+            self.logger.error(f"TEI devolvió formato inesperado: {data}")
+            raise RuntimeError("Formato TEI inesperado sin embeddings")
 
     @backoff.on_exception(backoff.expo, (aiohttp.ClientError, asyncio.TimeoutError), max_time=60)
     async def embed_batch(self, session: aiohttp.ClientSession, texts: list):
-        """
-        Divide batch grande en mini-lotes porque los modelos TEI
-        no aceptan batches enormes.
-        """
         all_embeddings = []
 
-        # dividir batch
         for i in range(0, len(texts), self.max_batch):
             chunk = texts[i:i + self.max_batch]
-
-            self.logger.info(f"→ TEI embedding chunk {i}-{i+len(chunk)}")
-
+            self.logger.info(f"→ TEI embedding batch {i}-{i+len(chunk)}")
             emb = await self._post(session, chunk)
             all_embeddings.extend(emb)
 

@@ -17,13 +17,9 @@ Servicio que consume y sincroniza datos de trabajadores desde APIs externas para
 
 #### TEI (Text Embeddings Inference) - instrucciones rápidas ####
 
-Levantar TEI en CPU:
+Levantar TEI : 
 
-docker run -d --name tei -p 8080:80 ghcr.io/huggingface/text-embeddings-inference:latest --model-id intfloat/e5-small
-
-Levantar TEI en GPU (si tienes GPU y driver configurado):
-
-docker run -d --name tei -p 8090:80 -e MODEL_ID=intfloat/e5-small ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+cmd: docker run -d --name tei -p 8090:80 -e MODEL_ID=intfloat/e5-small ghcr.io/huggingface/text-embeddings-inference:cpu-latest
 
 El endpoint principal para embeddings es POST /embed con payload {"inputs": ["texto1","texto2"]}
 
@@ -53,3 +49,8 @@ cmd: docker run -d --name redis -p 6379:6379 redis:7
             * SET test "hola"
             * GET test
 
+
+
+Ejecutar: 
+$env:PYTHONPATH=".\src"
+python -m ingestor.core.ingest_worker

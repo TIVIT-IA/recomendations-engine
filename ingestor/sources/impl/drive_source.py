@@ -14,22 +14,28 @@ import hashlib
 import json
 
 from ingestor.sources.base_source import BaseSource
-import aioredis
+
+# 🔥 NUEVO REDIS COMPATIBLE
+from redis import asyncio as redis_async
 
 logger = logging.getLogger("drive_source")
 
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
+
 def sha256_bytes(b: bytes) -> str:
     import hashlib
     return hashlib.sha256(b).hexdigest()
+
 
 class DriveSource(BaseSource):
     def __init__(self, folder_id: str, service_account_file: str = None, page_size: int = 100):
         self.folder_id = folder_id
         self.service_account_file = service_account_file or os.getenv("SERVICE_ACCOUNT_FILE")
         self.page_size = page_size
-        self.redis_url = os.getenv("REDIS_URL", None)  # opcional
+
+        # la URL redis://localhost:6379 típica
+        self.redis_url = os.getenv("REDIS_URL", None)
 
     def _build_service(self):
         creds = Credentials.from_service_account_file(self.service_account_file, scopes=SCOPES)
@@ -55,18 +61,20 @@ class DriveSource(BaseSource):
                 if page_text:
                     text.append(page_text)
             return "\n".join(text[:1000])  # limita texto muy grande
+
         elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             fh = io.BytesIO(content_bytes)
             doc = docx.Document(fh)
             return "\n".join([p.text for p in doc.paragraphs])
+
         else:
             try:
-                return content_bytes.decode('utf-8', errors='ignore')
+                return content_bytes.decode("utf-8", errors="ignore")
             except Exception:
                 return ""
 
     async def fetch(self) -> List[Dict[str, Any]]:
-        """Lista archivos de la carpeta y extrae texto. Evita redescargar archivos no cambiados."""
+        """Lista archivos de Google Drive y extrae texto. Usa Redis como caché de md5."""
         loop = asyncio.get_event_loop()
         service = await loop.run_in_executor(None, self._build_service)
 
@@ -75,18 +83,26 @@ class DriveSource(BaseSource):
         files = []
         page_token = None
         while True:
-            resp = service.files().list(q=query, fields="nextPageToken, files(id, name, mimeType, md5Checksum, size, modifiedTime)", pageSize=self.page_size, pageToken=page_token).execute()
+            resp = service.files().list(
+                q=query,
+                fields="nextPageToken, files(id, name, mimeType, md5Checksum, size, modifiedTime)",
+                pageSize=self.page_size,
+                pageToken=page_token
+            ).execute()
+
             files.extend(resp.get("files", []))
             page_token = resp.get("nextPageToken")
+
             if not page_token:
                 break
 
-        # connect redis if configured
+        # connect Redis
         redis = None
         if self.redis_url:
-            redis = await aioredis.from_url(self.redis_url, decode_responses=True)
+            redis = redis_async.from_url(self.redis_url, decode_responses=True)
 
         results = []
+
         for f in files:
             file_id = f["id"]
             name = f.get("name")
@@ -94,23 +110,29 @@ class DriveSource(BaseSource):
             md5 = f.get("md5Checksum") or f.get("modifiedTime") or str(f.get("size", "0"))
 
             cache_key = f"drive:file:{file_id}:md5"
-            # check redis for same md5
+
+            # check redis
             if redis:
                 old = await redis.get(cache_key)
                 if old == md5:
                     logger.info(f"[drive] skip unchanged {name}")
                     continue
 
-            # download (blocking in executor)
+            # download
             content_bytes = await loop.run_in_executor(None, self._download_file, service, file_id)
             text = await loop.run_in_executor(None, self._extract_text_from_bytes, content_bytes, mime_type)
 
-            # store md5 in redis
+            # store md5
             if redis:
-                await redis.set(cache_key, md5, ex=60 * 60 * 24 * 7)  # 7 days
+                await redis.set(cache_key, md5, ex=60 * 60 * 24 * 7)
 
             results.append({
-                "raw": {"documento": name, "contenido": text, "mime_type": mime_type, "file_id": file_id},
+                "raw": {
+                    "documento": name,
+                    "contenido": text,
+                    "mime_type": mime_type,
+                    "file_id": file_id
+                },
                 "source": "google_drive"
             })
 
